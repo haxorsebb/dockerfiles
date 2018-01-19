@@ -19,7 +19,7 @@ docker run --rm -i -t \
     -e SAMBA_HOST_IP="192.168.1.10" \
     -e SAMBA_DNS_FORWARDER="192.168.1.1" \
     -v ${PWD}/samba:/var/lib/samba \
-    pitkley/samba-ad-dc
+    haxorsebb/samba-ad-dc
 ```
 
 ### Persist volume using a data-container
@@ -29,7 +29,7 @@ docker run \
     --name dc_data \
     --volume /var/lib/samba \
     --entrypoint /bin/true \
-    pitkley/samba-ad-dc
+    haxorsebb/samba-ad-dc
 ```
 
 (The image used to start the data-container can be chosen arbitrarily, as long as it supplies `/bin/true` or any other binary resulting in immediate exit.)
@@ -41,7 +41,7 @@ docker run --rm -i -t \
     -e SAMBA_HOST_IP="192.168.1.10" \
     -e SAMBA_DNS_FORWARDER="192.168.1.1" \
     --volumes-from dc_data \
-    pitkley/samba-ad-dc
+    haxorsebb/samba-ad-dc
 ```
 
 ## Environment variables

@@ -7,4 +7,8 @@ set -e
     exit 127
 }
 
+#fixing the nameserver to self, if container is started from scratch
+
+echo -e nameserver 127.0.0.1 >/etc/resolv.conf
+
 samba -i -s /var/lib/samba/private/smb.conf

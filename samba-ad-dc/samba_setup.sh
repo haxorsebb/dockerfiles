@@ -26,7 +26,10 @@ SAMBA_OPTIONS=${SAMBA_OPTIONS:-}
 [ -n "$SAMBA_HOST_IP" ] && SAMBA_OPTIONS="$SAMBA_OPTIONS --host-ip=$SAMBA_HOST_IP"
 
 # Fix nameserver
-echo -e "search ${SAMBA_REALM}\nnameserver 127.0.0.1" > /etc/resolv.conf
+echo "search ${SAMBA_REALM}\nnameserver $SAMBA_HOST_IP" > /etc/resolv.conf
+#fix hosts 
+echo "127.0.0.1     localhost localhost.localdomain\n$SAMBA_HOST_IP `hostname`.${SAMBA_REALM} `hostname`" >/etc/hosts
+
 
 # Provision domain
 rm -f /etc/samba/smb.conf
@@ -38,14 +41,27 @@ samba-tool domain provision \
     --server-role=dc \
     --dns-backend=SAMBA_INTERNAL \
     $SAMBA_OPTIONS \
-    --option="bind interfaces only"=yes
+    --option="bind interfaces only =yes" \
+    --use-xattrs=yes \
+    --option="interfaces = eth lo"
 
 # Move smb.conf
 mv /etc/samba/smb.conf /var/lib/samba/private/smb.conf
 
+cat /var/lib/samba/private/smb.conf
+
 # Update dns-forwarder if required
 [ -n "$SAMBA_DNS_FORWARDER" ] \
     && sed -i "s/dns forwarder = .*/dns forwarder = $SAMBA_DNS_FORWARDER/" /var/lib/samba/private/smb.conf
+# add dynamic port range restriction
+sed -i "s/rpc server dynamic port range = .*/rpc server dynamic port range = 49152-49200/" /var/lib/samba/private/smb.conf 
+#remove xattr_tdb, xattrs are supported if not aufs for docker, e.g. overlayfs2, but xattrs are not detected as not reported in mounts
+sed -i "s/xattr_tdb:file .*/vfs objects = streams_xattr/" /var/lib/samba/private/smb.conf
+
+cp /var/lib/samba/private/krb5.conf /etc
+
+#setup ntp
+/etc/my_init.d/ntpd_setup.sh
 
 # Mark samba as setup
 touch /var/lib/samba/.setup
