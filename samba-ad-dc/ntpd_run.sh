@@ -7,4 +7,4 @@ set -e
     exit 127
 }
 
-ntpd -n -c /var/lib/samba/ntp.conf
+ntpd -n -c /etc/ntp/ntp.conf

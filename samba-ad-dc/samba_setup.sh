@@ -26,10 +26,9 @@ SAMBA_OPTIONS=${SAMBA_OPTIONS:-}
 [ -n "$SAMBA_HOST_IP" ] && SAMBA_OPTIONS="$SAMBA_OPTIONS --host-ip=$SAMBA_HOST_IP"
 
 # Fix nameserver
-echo "search ${SAMBA_REALM}\nnameserver $SAMBA_HOST_IP" > /etc/resolv.conf
+#echo "search ${SAMBA_REALM}\nnameserver $SAMBA_HOST_IP\nameserver $SAMBA_DNS_FORWARDER" > /etc/resolv.conf
 #fix hosts 
-echo "127.0.0.1     localhost localhost.localdomain\n$SAMBA_HOST_IP `hostname`.${SAMBA_REALM} `hostname`" >/etc/hosts
-
+#echo "127.0.0.1     localhost localhost.localdomain\n$SAMBA_HOST_IP `hostname`.${SAMBA_REALM} `hostname`" >/etc/hosts
 
 # Provision domain
 rm -f /etc/samba/smb.conf
@@ -42,21 +41,40 @@ samba-tool domain provision \
     --dns-backend=SAMBA_INTERNAL \
     $SAMBA_OPTIONS \
     --option="bind interfaces only =yes" \
+    --option="interfaces = $SAMBA_HOST_IP 127.0.0.1" \
     --use-xattrs=yes \
-    --option="interfaces = eth lo"
+    --option="idmap config * : backend = tdb" \
+    --option="idmap config * : range = 900000-999999" \
+    --option="idmap config $SAMBA_DOMAIN : backend = ad " \
+    --option="idmap config $SAMBA_DOMAIN : schema_mode = rfc2307" \
+    --option="idmap config $SAMBA_DOMAIN : range = $SAMBA_UID_START-900000" \
+    --option="winbind nss info = rfc2307" \
+    --option="winbind use default domain = yes"
+
 
 # Move smb.conf
 mv /etc/samba/smb.conf /var/lib/samba/private/smb.conf
-
-cat /var/lib/samba/private/smb.conf
 
 # Update dns-forwarder if required
 [ -n "$SAMBA_DNS_FORWARDER" ] \
     && sed -i "s/dns forwarder = .*/dns forwarder = $SAMBA_DNS_FORWARDER/" /var/lib/samba/private/smb.conf
 # add dynamic port range restriction
 sed -i "s/rpc server dynamic port range = .*/rpc server dynamic port range = 49152-49200/" /var/lib/samba/private/smb.conf 
-#remove xattr_tdb, xattrs are supported if not aufs for docker, e.g. overlayfs2, but xattrs are not detected as not reported in mounts
-sed -i "s/xattr_tdb:file .*/vfs objects = streams_xattr/" /var/lib/samba/private/smb.conf
+
+#move sysvol share to shares volume
+mv /var/lib/samba/sysvol /shares
+#fix smb.conf
+sed -i "s+/var/lib/samba/sysvol+/shares/sysvol+" /var/lib/samba/private/smb.conf
+
+
+#add users share
+echo "[users]\n\tpath = /shares/users/\n\tread only = no\n\tforce create mode = 0600\n\tforce directory mode = 0700\n" >>/var/lib/samba/private/smb.conf
+#create users folder
+mkdir -p /shares/users/
+# chgrp -R "Domain Users" /shares/users/
+chmod 2750 /shares/users/
+
+cat /var/lib/samba/private/smb.conf
 
 cp /var/lib/samba/private/krb5.conf /etc
 
